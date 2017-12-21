@@ -1,6 +1,15 @@
 # Class Annotations
 This package introduces class annotations. They are first class objects. This package defines how to attach them to classes.
 
+
+## Installation 
+```Smalltalk
+Metacello new
+  baseline: 'ClassAnnotation';
+  repository: 'github://dionisiydk/ClassAnnotation';
+  load
+```
+
 ## Class annotation creation
 
 To create a new annotation just define a subclass of the class ClassAnnotation:
@@ -60,7 +69,7 @@ Notice that each annotation includes the annotated class and the selector of dec
 MyClass classAnnotationsDo: 
 	[:anAnnotation | 
 		'Class ', anAnnotation annotatedClass logCr.
-		'is annotated via' , anAnnotation selector logCr.
+		'is annotated via', anAnnotation selector logCr.
 		]
 ```
 
@@ -78,98 +87,100 @@ There is no special way how to instantiate annotation instances. It is up to you
 The base internal state of annotation is initialized during registry creation.  Users should not think about it. 
 
 
-
-
-
-# Annotating Annotations
+# Less important aspects
+## Annotating Annotations
 Annotations are just normal classes without any restrictions. You can also attach annotations to annotations like in other languages.
 
-# Forbidden annotation
-Annotation can forbid annotating of particular classes. For example it can forbid abstract classes.
+## Forbidden annotation
+An annotation can forbid annotating particular classes. The annotation class has just to specialize the method ==isForbidden==. For example it can forbid abstract classes.
+
 ```Smalltalk
 MySpecificAnnotation >> isForbidden
       ^annotatedClass isAbstract
 ```
 Such annotations will not be added to the registry and forbidden classes will not include them.
 
-## Contextual annotations
+
+# Contextual annotations
 Any annotation can be defined with context where it can be used. 
-Imaging that you want annotate command classes with shortcuts for specific widgets:
+Imaging that you want to annotate command classes with shortcuts for specific widgets: MyWidgetClass1 and MyWidgetClass2.
+You define the following methods and annotations:
+
 ```Smalltalk
-MyCommand class>>widget1ShortcutAnnotation
+MyCommand class >> widget1ShortcutAnnotation
    <classAnnotation>
    ^ShortcutAnnotation using: $r meta for: MyWidgetClass1
 
-MyCommand class>> widget2ShortcutAnnotation
+MyCommand class >> widget2ShortcutAnnotation
    <classAnnotation>
    ^ShortcutAnnotation using: $t meta for: MyWidgetClass2
 ```
-Then you can query all shortcuts which should be active for concrete widget: 
+Then you can query all shortcuts which should be active for a concrete widget: 
 ```Smalltalk
 ShortcutAnnotation activeAnnotationsInContext: aMyWidgetInstance
 ShortcutAnnotation activeAnnotationsInContext: aMyWidgetInstance do: aBlock
 ```
-Context describes annotation users. And for contextual annotation lookup an instance of user should be provider. In that example it is aMyWidgetInstance.
 
-Declaring context using classes is simplest way how to restrict users which see annotation. By default given class is converted to SimpleAnnotationContext instance using #asAnnotationContext message. Then during annotation query it simply asks #isKindOf: for given user instance. 
+Context describes annotation users. And for contextual annotation, a lookup an instance of user should be provided. In that example it is aMyWidgetInstance. @@denis I did not get the last sentence@@
+
+Declaring a context using classes is a simple way to restrict users which see annotation. By default, a given class is converted to SimpleAnnotationContext instance using the ==asAnnotationContext== message. Then during annotation query,  it simply asks #isKindOf: for given user instance. 
 
 For advanced scenarios you can implement more complex annotation context and define specific DSL to use them for annotations and queries.
  
-Any annotation class can redefine meaning of active annotation with extra conditions. For example it can delegate decision to annotated class itself:
+Any annotation class can redefine the meaning of active annotation with extra conditions. For example, it can delegate decision to annotated class itself:
 ```Smalltalk
-ShortcutAnnotation >>isActiveInContext: aMyWidgetInstance
-   ^(super isActiveInContext: aMyWidgetInstance)
+ShortcutAnnotation >> isActiveInContext: aMyWidgetInstance
+   ^ (super isActiveInContext: aMyWidgetInstance)
         and: [annotatedClass canBeUsedInWidget: aMyWidgetInstance]
 ```
 
 But for some scenarios you may need to query annotations according to original "active" definition despite of extra conditions. For such cases the "visibility" of annotation is introduced: the annotation is visible if it is declared for given user:
 ```Smalltalk
-ClassAnnotation>>isVisibleInContext: anAnnotationUser
-	^activeContext describes: anAnnotationUser
+ClassAnnotation >> isVisibleInContext: anAnnotationUser
+	^ activeContext describes: anAnnotationUser
 ```
-So the visible annotation is not necessary active. But active annotation is always visible for given user:
+Notice that a visible annotation is not necessary active. But an active annotation is always visible for given user:
 ```Smalltalk
-ClassAnnotation>>isActiveInContext: anAnnotationUser
-	^self isVisibleInContext: anAnnotationUser
+ClassAnnotation >> isActiveInContext: anAnnotationUser
+	^ self isVisibleInContext: anAnnotationUser
 ```
 Imaging that you want annotate commands with context menu information (where they should be executed). In that case disabled menu items can represent commands which are visible for application but not active for it (because selected item are not appropriate).
   
-To query visible annotations there are few methods:
+  
+To query visible annotations, there are few methods:
 ```Smalltalk
 ContextMenuAnnotation visibleInstancesInContext: anAnnotationUser
 ContextMenuAnnotation visibleInstancesInContext: anAnnotationUser do: aBlock
 ```
 
 ## Annotation priority
-For particular scenarios it can be important to define order in which annotations are processed.
-For context menu example this order can be used to sort menu items. 
-For shortcut example it allows override existing shortcuts of application. 
+For particular scenarios, it can be important to define the order in which annotations are processed.
+For context menu example, this order can be used to sort menu items. 
+For shortcut example, it allows on to override existing application shortcuts. 
 
-So concept of annotation priority was introduced for this reason. Any annotation can define it. Annotation with greater priority value is processed first by enumeration methods:
+The concept of annotation priority is introduced for this reason. Any annotation can define it. An annotation with greater priority value is processed first by enumeration methods:
 - registeredInstancesDo:
 - activeInstancesInContext:do:
 - visibleInstancesInContext:do:
 
-Priority is holden as instance variable. So you can specify it in declaration method:
+Priority is held as instance variable. So you can specify it in declaration method:
 ```Smalltalk
-MyCommand class>>shortcutAnnotation
+MyCommand class >> shortcutAnnotation
    <classAnnotation>
    ^(ShortcutAnnotation using: $r meta for: MyWidgetClass) 
        priority: 1000
 ```
-Of course for your annotation you can add instantiation methods which are suitable for your domain.
+Of course for your annotation, you can add define and use instantiation methods which are suitable for your domain.
 
-In some cases you would need override order in which annotations should be sorted. For example, you can say that command with greater priority should be at the end of menu.
-For such cases you can override class side method #createContainerForRegistry:
+### Example 
+In some cases you may need override the order in which annotations should be sorted. For example, you can say that command with greater priority should be at the end of menu.
+
+For such cases you can override class side method ==createContainerForRegistry==:
 ```Smalltalk
-MySpecificAnnotation class>>createContainerForRegistry
+MySpecificAnnotation class >> createContainerForRegistry
      ^SortedCollection sortBlock: #priority ascending
 ``` 
+## Conclusion
 
-# Installation
-```Smalltalk
-Metacello new
-  baseline: 'ClassAnnotation';
-  repository: 'github://dionisiydk/ClassAnnotation';
-  load
-```
+Class annotations are declarative ways to add meta-information to classes. There are modular since you can define them in separate pckages. Annotations can also be used to define contextual descriptions such as commands objects. 
+
